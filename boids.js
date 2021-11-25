@@ -6,8 +6,9 @@ const numBoids = 100;
 const visualRange = 75;
 const escapeVisualRange = 25;
 
-const numPreds = 1;
+const numPreds = 5;
 //const predVisualRange = 25;
+const chompRange = 5;
 
 var boids = [];
 var preds = [];
@@ -116,8 +117,8 @@ function chaseBoid(pred) {
   const chaseFactor = 0.05; // adjust velocity by this %
 
   let minDistance = 10000;
-  let preyX = 0;
-  let preyY = 0;
+  let preyX = width * 0.5;
+  let preyY = height * 0.5;
 
   for (let boid of boids) {
     if (distance(pred, boid) < minDistance) {
@@ -129,6 +130,17 @@ function chaseBoid(pred) {
 
   pred.dx += (preyX - pred.x) * chaseFactor;
   pred.dy += (preyY - pred.y) * chaseFactor;
+}
+
+// Find the any boids within chomp distance and remove
+function devourBoids(pred) {
+
+  for (let boid of boids) {
+    if (distance(pred, boid) < chompRange) {
+      boids.splice(boids.indexOf(boid),1);
+    }
+  }
+
 }
 
 // Find the closest predator and adjust velocity away from 
@@ -217,7 +229,7 @@ function limitSpeed(boid, species = "boid") {
   }
 }
 
-const DRAW_TRAIL = false;
+const DRAW_TRAIL = true;
 
 function drawBoid(ctx, boid, species = "boid") {
   const angle = Math.atan2(boid.dy, boid.dx);
@@ -288,6 +300,8 @@ function animationLoop() {
     pred.y += pred.dy + windSpeedY;
     pred.history.push([pred.x, pred.y]);
     pred.history = pred.history.slice(-50);
+
+    devourBoids(pred);
   }
 
   // Clear the canvas and redraw all the boids in their current positions
