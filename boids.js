@@ -4,9 +4,16 @@ let height = 150;
 
 const numBoids = 100;
 const visualRange = 75;
+const escapeVisualRange = 25;
+
+const numPreds = 1;
+//const predVisualRange = 25;
 
 var boids = [];
+var preds = [];
 
+// initial boids with random location and velocity &
+// preds in corner with random velocity
 function initBoids() {
   for (var i = 0; i < numBoids; i += 1) {
     boids[boids.length] = {
@@ -17,8 +24,19 @@ function initBoids() {
       history: [],
     };
   }
+
+  for (i = 0; i < numPreds; i += 1) {
+    preds[preds.length] = {
+      x: Math.random() * width/30,
+      y: Math.random() * height/30,
+      dx: Math.random() * 10 - 5,
+      dy: Math.random() * 10 - 5,
+      history: [],
+    };
+  }
 }
 
+// compute distance between two boids
 function distance(boid1, boid2) {
   return Math.sqrt(
     (boid1.x - boid2.x) * (boid1.x - boid2.x) +
@@ -26,6 +44,7 @@ function distance(boid1, boid2) {
   );
 }
 
+// find n closest boids to a given boid
 // TODO: This is naive and inefficient.
 function nClosestBoids(boid, n) {
   // Make a copy
@@ -92,6 +111,49 @@ function flyTowardsCenter(boid) {
   }
 }
 
+// Find the closest boid and adjust velocity toward boid
+function chaseBoid(pred) {
+  const chaseFactor = 0.05; // adjust velocity by this %
+
+  let minDistance = 10000;
+  let preyX = 0;
+  let preyY = 0;
+
+  for (let boid of boids) {
+    if (distance(pred, boid) < minDistance) {
+      preyX = boid.x;
+      preyY = boid.y;
+      minDistance = distance(pred, boid);
+    }
+  }
+
+  pred.dx += (preyX - pred.x) * chaseFactor;
+  pred.dy += (preyY - pred.y) * chaseFactor;
+}
+
+// Find the closest predator and adjust velocity away from 
+// predator if within visual distance
+function runForYourLife(boid) {
+  const escapeFactor = 0.5; // adjust velocity by this %
+
+  let minDistance = escapeVisualRange;
+  let predX = 0;
+  let predY = 0;
+
+  for (let pred of preds) {
+    if (distance(boid, pred) < minDistance) {
+      predX = pred.x;
+      predY = pred.y;
+      minDistance = distance(boid, pred);
+    }
+  }
+
+  if (minDistance < escapeVisualRange) {
+    boid.dx += (boid.x - predX) * escapeFactor;
+    boid.dy += (boid.y - predY) * escapeFactor;
+  }
+}
+
 // Move away from other boids that are too close to avoid colliding
 function avoidOthers(boid) {
   const minDistance = 20; // The distance to stay away from other boids
@@ -139,8 +201,14 @@ function matchVelocity(boid) {
 
 // Speed will naturally vary in flocking behavior, but real animals can't go
 // arbitrarily fast.
-function limitSpeed(boid) {
-  const speedLimit = 15;
+function limitSpeed(boid, species = "boid") {
+  let speedLimit = 100;
+
+  if (species == "boid") {
+    speedLimit = 15;
+  } else {
+    speedLimit = 20;
+  }
 
   const speed = Math.sqrt(boid.dx * boid.dx + boid.dy * boid.dy);
   if (speed > speedLimit) {
@@ -151,12 +219,16 @@ function limitSpeed(boid) {
 
 const DRAW_TRAIL = false;
 
-function drawBoid(ctx, boid) {
+function drawBoid(ctx, boid, species = "boid") {
   const angle = Math.atan2(boid.dy, boid.dx);
   ctx.translate(boid.x, boid.y);
   ctx.rotate(angle);
   ctx.translate(-boid.x, -boid.y);
-  ctx.fillStyle = "#558cf4";
+  if (species == "boid") {
+    ctx.fillStyle = "#558cf4";
+  } else {
+    ctx.fillStyle = "#ff5733";
+  }
   ctx.beginPath();
   ctx.moveTo(boid.x, boid.y);
   ctx.lineTo(boid.x - 15, boid.y + 5);
@@ -166,7 +238,11 @@ function drawBoid(ctx, boid) {
   ctx.setTransform(1, 0, 0, 1, 0, 0);
 
   if (DRAW_TRAIL) {
-    ctx.strokeStyle = "#558cf466";
+    if (species == "boid") {
+      ctx.strokeStyle = "#558cf466";
+    } else {
+      ctx.strokeStyle = "#ff573366";
+    }
     ctx.beginPath();
     ctx.moveTo(boid.history[0][0], boid.history[0][1]);
     for (const point of boid.history) {
@@ -179,19 +255,39 @@ function drawBoid(ctx, boid) {
 // Main animation loop
 function animationLoop() {
   // Update each boid
+
+  // wind factor
+  const windSpeedX = 7;
+  const windSpeedY = 7;
+
   for (let boid of boids) {
     // Update the velocities according to each rule
     flyTowardsCenter(boid);
     avoidOthers(boid);
     matchVelocity(boid);
+    runForYourLife(boid);
     limitSpeed(boid);
     keepWithinBounds(boid);
 
     // Update the position based on the current velocity
-    boid.x += boid.dx;
-    boid.y += boid.dy;
-    boid.history.push([boid.x, boid.y])
+    boid.x += boid.dx + windSpeedX;
+    boid.y += boid.dy + windSpeedY;
+    boid.history.push([boid.x, boid.y]);
     boid.history = boid.history.slice(-50);
+  }
+
+  for (let pred of preds) {
+    // Update the velocities according to each rule
+    chaseBoid(pred);
+    //avoidOtherPreds(pred);
+    limitSpeed(pred, "pred");
+    // keepWithinBounds(pred);
+
+    // Update the position based on the current velocity
+    pred.x += pred.dx + windSpeedX;
+    pred.y += pred.dy + windSpeedY;
+    pred.history.push([pred.x, pred.y]);
+    pred.history = pred.history.slice(-50);
   }
 
   // Clear the canvas and redraw all the boids in their current positions
@@ -199,6 +295,9 @@ function animationLoop() {
   ctx.clearRect(0, 0, width, height);
   for (let boid of boids) {
     drawBoid(ctx, boid);
+  }
+  for (let pred of preds) {
+    drawBoid(ctx, pred, "pred");
   }
 
   // Schedule the next frame
