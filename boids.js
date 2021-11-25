@@ -2,7 +2,7 @@
 let width = 150;
 let height = 150;
 
-const numBoids = 100;
+const numBoids = 10;
 const visualRange = 75;
 const escapeVisualRange = 25;
 
@@ -116,7 +116,7 @@ function flyTowardsCenter(boid) {
 function chaseBoid(pred) {
   const chaseFactor = 0.05; // adjust velocity by this %
 
-  let minDistance = 10000;
+  let minDistance = width * width + height * height;
   let preyX = width * 0.5;
   let preyY = height * 0.5;
 
@@ -167,12 +167,18 @@ function runForYourLife(boid) {
 }
 
 // Move away from other boids that are too close to avoid colliding
-function avoidOthers(boid) {
-  const minDistance = 20; // The distance to stay away from other boids
+function avoidOthers(boid, species = "boid") {
+  let minDistance = 20; // The distance to stay away from other boids
+  let avoidArray = boids
+  if (species == "pred") {
+    minDistance = 20;
+    avoidArray = preds;
+  }
+
   const avoidFactor = 0.05; // Adjust velocity by this %
   let moveX = 0;
   let moveY = 0;
-  for (let otherBoid of boids) {
+  for (let otherBoid of avoidArray) {
     if (otherBoid !== boid) {
       if (distance(boid, otherBoid) < minDistance) {
         moveX += boid.x - otherBoid.x;
@@ -291,7 +297,7 @@ function animationLoop() {
   for (let pred of preds) {
     // Update the velocities according to each rule
     chaseBoid(pred);
-    //avoidOtherPreds(pred);
+    avoidOthers(pred,"pred");
     limitSpeed(pred, "pred");
     // keepWithinBounds(pred);
 
